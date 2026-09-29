@@ -9,10 +9,8 @@ app.use(express.json());
 const { protect } = require('./middleware/auth');
 
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/transactions', require('./routes/transactionRoutes'));
 
-// TEMPORARY: delete after testing
-app.get('/api/me', protect, (req, res) => res.json(req.user));
-app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 const PORT = process.env.PORT || 5000;
 
