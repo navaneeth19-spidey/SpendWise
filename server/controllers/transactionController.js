@@ -140,9 +140,75 @@ const deleteTransaction = async (req, res) => {
   }
 };
 
+// @desc    Get financial aggregation summary
+// @route   GET /api/transactions/summary
+// @access  Private
+const getTransactionSummary = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+
+    const matchQuery = { user: new mongoose.Types.ObjectId(req.user._id) };
+
+    if (month && year) {
+      const startDate = new Date(Date.UTC(year, month - 1, 1));
+      const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      matchQuery.date = { $gte: startDate, $lte: endDate };
+    } else if (year) {
+      const startDate = new Date(Date.UTC(year, 0, 1));
+      const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      matchQuery.date = { $gte: startDate, $lte: endDate };
+    }
+
+    const summary = await Transaction.aggregate([
+      { $match: matchQuery },
+      {
+        $facet: {
+          overallTotals: [
+            {
+              $group: {
+                _id: null,
+                totalIncome: {
+                  $sum: { $cond: [{ $eq: ['$type', 'income'] }, '$amount', 0] },
+                },
+                totalExpense: {
+                  $sum: { $cond: [{ $eq: ['$type', 'expense'] }, '$amount', 0] },
+                },
+              },
+            },
+          ],
+          byCategory: [
+            { $match: { type: 'expense' } },
+            {
+              $group: {
+                _id: '$category',
+                totalAmount: { $sum: '$amount' },
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { totalAmount: -1 } },
+          ],
+        },
+      },
+    ]);
+
+    const totals = summary[0]?.overallTotals[0] || { totalIncome: 0, totalExpense: 0 };
+    const netBalance = totals.totalIncome - totals.totalExpense;
+
+    res.json({
+      totalIncome: totals.totalIncome,
+      totalExpense: totals.totalExpense,
+      netBalance,
+      byCategory: summary[0]?.byCategory || [],
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Aggregation failed' });
+  }
+};
+
 module.exports = {
   createTransaction,
   getTransactions,
   updateTransaction,
   deleteTransaction,
+  getTransactionSummary,
 };

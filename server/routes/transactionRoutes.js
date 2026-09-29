@@ -6,6 +6,7 @@ const {
   getTransactions,
   updateTransaction,
   deleteTransaction,
+  getTransactionSummary,
 } = require('../controllers/transactionController');
 
 // Secure all transaction routes with the JWT protection middleware
@@ -15,6 +16,7 @@ router.route('/')
   .post(createTransaction)
   .get(getTransactions);
 
+router.get('/summary', getTransactionSummary);
 router.route('/:id')
   .put(updateTransaction)
   .delete(deleteTransaction);
