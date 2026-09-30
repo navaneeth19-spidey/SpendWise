@@ -7,7 +7,7 @@ A minimalist personal finance tracker built on the MERN stack. SpendWise helps u
 ## Live Links
 
 - **Live Application:** [https://spend-wise-eight-zeta.vercel.app](https://spend-wise-eight-zeta.vercel.app)
-- **API Server:** [https://spendwise-y9uh.onrender.com](https://spendwise-y9uh.onrender.com)
+- **API Server:** [https://spendwise-y9uh.onrender.com/api/health](https://spendwise-y9uh.onrender.com/api/health)
 
 ---
 
