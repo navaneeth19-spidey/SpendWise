@@ -8,18 +8,25 @@ const connectDB = require('./config/db');
 
 const app = express();
 
-// Set secure HTTP headers
+// 1. HTTP Security Headers
 app.use(helmet());
 
-// Prevent MongoDB Operator Injection (strip $ and . operators)
+// 2. Body Parsers (Must precede routes and sanitization)
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// 3. Mongo Sanitize Middleware (Safe Object Guard to avoid undefined mutations)
 app.use((req, res, next) => {
-  if (req.body) req.body = mongoSanitize.sanitize(req.body);
-  if (req.params) req.params = mongoSanitize.sanitize(req.params);
+  if (req.body && typeof req.body === 'object') {
+    req.body = mongoSanitize.sanitize(req.body);
+  }
+  if (req.params && typeof req.params === 'object') {
+    req.params = mongoSanitize.sanitize(req.params);
+  }
   next();
 });
 
-// Body parsing with size limiting
-// CORS Configuration
+// 4. Dynamic Origin Verification with Vercel Subdomain Fallback
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, '') : null,
@@ -28,12 +35,10 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // 1. Allow non-browser calls (Postman, curl, server-to-server)
+      // Allow requests with no origin (mobile tools, Postman, curl, health probes)
       if (!origin) return callback(null, true);
 
       const normalizedOrigin = origin.replace(/\/$/, '');
-
-      // 2. Allow explicitly configured origins OR any Vercel preview/production branch
       const isAllowed =
         allowedOrigins.includes(normalizedOrigin) ||
         /\.vercel\.app$/.test(new URL(origin).hostname);
@@ -43,7 +48,7 @@ app.use(
       }
 
       console.warn(`[CORS Blocked]: Origin ${origin} not recognized.`);
-      return callback(null, false); // Return false instead of Error to prevent 500 crashes
+      return callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -51,28 +56,27 @@ app.use(
   })
 );
 
-// Rate Limiter for Authentication Endpoints (Max 15 requests per 15 minutes)
+// 5. Auth Rate Limiter (Protects login and register against brute-force)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
-  message: { message: 'Too many authentication attempts. Please try again after 15 minutes.' },
+  max: 30,
+  message: { message: 'Too many authentication attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Health check endpoint
+// 6. Routes
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
-
-// Routes
 app.use('/api/auth', authLimiter, require('./routes/authRoutes'));
 app.use('/api/transactions', require('./routes/transactionRoutes'));
 
-// Global Error Handler
+// 7. Global Centralized Error Handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Unhandled Server Error:', err.stack);
   res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
+// 8. Server Boot & Database Connection
 const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
   app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
