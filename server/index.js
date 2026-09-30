@@ -19,24 +19,35 @@ app.use((req, res, next) => {
 });
 
 // Body parsing with size limiting
-app.use(express.json({ limit: '10kb' }));
-
-// Strict CORS Lockdown
+// CORS Configuration
 const allowedOrigins = [
   'http://localhost:5173',
-  process.env.FRONTEND_URL, // e.g. https://spendwise.vercel.app
+  process.env.FRONTEND_URL ? process.env.FRONTEND_URL.replace(/\/$/, '') : null,
 ].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or Postman)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // 1. Allow non-browser calls (Postman, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/$/, '');
+
+      // 2. Allow explicitly configured origins OR any Vercel preview/production branch
+      const isAllowed =
+        allowedOrigins.includes(normalizedOrigin) ||
+        /\.vercel\.app$/.test(new URL(origin).hostname);
+
+      if (isAllowed) {
         return callback(null, true);
       }
-      return callback(new Error('Blocked by CORS policy'));
+
+      console.warn(`[CORS Blocked]: Origin ${origin} not recognized.`);
+      return callback(null, false); // Return false instead of Error to prevent 500 crashes
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
