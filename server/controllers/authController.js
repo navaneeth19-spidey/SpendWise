@@ -25,10 +25,15 @@ const register = async (req, res) => {
       user: { id: user._id, name: user.name, email: user.email },
     });
   } catch (error) {
+    console.error('Registration Error:', error); // Prints directly into Render logs
+
     if (error.name === 'ValidationError') {
       return res.status(400).json({ message: Object.values(error.errors)[0].message });
     }
-    res.status(500).json({ message: 'Server error' });
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+    res.status(500).json({ message: error.message || 'Server error' });
   }
 };
 
