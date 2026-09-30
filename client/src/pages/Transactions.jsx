@@ -1,29 +1,59 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import TransactionModal from '../components/TransactionModal';
+import FilterBar from '../components/FilterBar';
 import { Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+
+const initialFilters = {
+  type: '',
+  category: '',
+  month: '',
+  year: '',
+  page: 1,
+  limit: 10,
+};
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState(null);
+  const [filters, setFilters] = useState(initialFilters);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
 
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/transactions');
+      // Clean query parameters: omit empty string fields
+      const params = Object.fromEntries(
+        Object.entries(filters).filter(([_, v]) => v !== '' && v !== null && v !== undefined)
+      );
+
+      const res = await api.get('/transactions', { params });
       setTransactions(res.data.transactions);
+      setPagination({
+        page: res.data.page,
+        pages: res.data.pages,
+        total: res.data.total,
+      });
     } catch (err) {
-      console.error('Failed to retrieve transactions', err);
+      console.error('Failed to load transactions', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  const handlePageChange = (newPage) => {
+    setFilters((prev) => ({ ...prev, page: newPage }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilters);
+  };
 
   const handleCreateOrUpdate = async (formData) => {
     try {
@@ -44,7 +74,7 @@ export default function Transactions() {
     if (!window.confirm('Are you sure you want to delete this record?')) return;
     try {
       await api.delete(`/transactions/${id}`);
-      setTransactions((prev) => prev.filter((t) => t._id !== id));
+      fetchTransactions();
     } catch (err) {
       alert(err.response?.data?.message || 'Deletion failed');
     }
@@ -68,11 +98,21 @@ export default function Transactions() {
         </button>
       </div>
 
+      {/* Filter and Pagination Control Bar */}
+      <FilterBar
+        filters={filters}
+        setFilters={setFilters}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        onReset={handleResetFilters}
+      />
+
+      {/* Transaction Records Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-slate-400">Loading transactions...</div>
+          <div className="text-center py-12 text-slate-400">Loading filtered records...</div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">No records found. Click "Add Record" to start.</div>
+          <div className="text-center py-12 text-slate-400">No matching transactions found.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
